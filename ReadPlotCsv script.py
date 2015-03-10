@@ -34,6 +34,8 @@ class guiplot_tk (Tkinter.Tk):
         self.do_stats = Tkinter.IntVar ()
         self.new_graph = Tkinter.IntVar ()
         self.In_sample = Tkinter.IntVar ()
+        self.listbox = None
+        self.Dic = None
         self.In_sample.set (1)
         
         self.init_params ()
@@ -51,7 +53,7 @@ class guiplot_tk (Tkinter.Tk):
         
     def initialize (self):
         # Création le bouton importer 
-        Boutonread = Tkinter.Button ( self, text = 'Importer', command = lambda  : self.dolistbox ( self.ReadCsv () ) )
+        Boutonread = Tkinter.Button ( self, text = 'Importer', command = lambda  : self.dolistbox () )
         Boutonread.grid ()
         
         #bouton quitter
@@ -134,15 +136,19 @@ class guiplot_tk (Tkinter.Tk):
                 print "le chemin n'existe pas"
 
     #affiche la listbox dans une nouvelle fenetre
-    def dolistbox (self, Dic):
+    def dolistbox (self):
         '''Creation de la liste et de la fenetre des columns de(s) DF importe. Affiche le boutton "plot" afin de faire les graphiques'''
+        #on importe le(s) csv dans un dictionnaire
+        Dic = self.ReadCsv ()
+        
+        #on traite le dictionnaire
         if Dic == {}:
             return
         
         elif Dic is not None:
-            #test des colonnes vides
+            #test des colonnes vides (messageBox)
             self.controle_nan (Dic)
-                
+            
             columns = ()
             #creation d'une nouvelle fenetre
             tk_listbox = Tkinter.Toplevel ()
@@ -153,27 +159,30 @@ class guiplot_tk (Tkinter.Tk):
             tk_listbox.grab_set ()
             
             #affecter la listbox a la nouvelle fenetre
-            listbox = Tkinter.Listbox (tk_listbox, width=30, height=20, yscrollcommand=scrollbar.set)
-            scrollbar.config (command=listbox.yview)
-            scrollbar.pack (side="right", fill="y")
-            listbox.pack (side="left",fill="both", expand=True)
+            listbox = Tkinter.Listbox (tk_listbox, width = 30, height = 20, yscrollcommand = scrollbar.set)
+            scrollbar.config (command = listbox.yview)
+            scrollbar.pack (side = "right", fill = "y")
+            listbox.pack (side = "left",fill = "both", expand = True)
             
             #EXTENDED: pour selectioner plusierus items
             listbox.config (selectmode = Tkinter.EXTENDED)
             listbox.pack ()
             Nfiles = 0
-        
+            
             for key in Dic.keys ():
                 df = Dic [key]
                 Nfiles += 1
-                
                 columns = columns + tuple (df.columns)
+            
+            self.Dic = Dic
             columns = [x for x, y in collections.Counter(columns).items () if y == Nfiles]
             columns.sort ()
             #afficher les colonnes de df dans la listbox
             for item in columns:
                 listbox.insert (Tkinter.END, item)
-        
+                
+            self.listbox = listbox
+            
             #case pour Indicateurs de performance
             BoutonChoser = Tkinter.Checkbutton(tk_listbox, variable = self.do_indicateurs, text = "Indicateurs de performance")
             BoutonChoser.pack ()
@@ -191,7 +200,7 @@ class guiplot_tk (Tkinter.Tk):
             BoutonChoser.pack ()
             
             #bouton pour faire le graphique
-            Boutonplot = Tkinter.Button (tk_listbox, text ='plot', command = lambda : self.plot (dic = Dic , selection_init = self.getselection (listbox = listbox)))
+            Boutonplot = Tkinter.Button (tk_listbox, text ='plot', command = lambda : self.plot ())
             Boutonplot.pack ()
             
             #bouton pour fermer la fenetre cree
@@ -324,8 +333,14 @@ class guiplot_tk (Tkinter.Tk):
             
         return textstr
                 
-    def plot (self, dic, selection_init):
+    def plot (self):
         ''' faire un graph de(s) label(s) selectionne de(s) df dans dic, ainsi que les stats et les indicateur des perfs'''
+        
+        #la selection de l'utilisateur
+        selection_init = self.getselection (listbox = self.listbox)
+        
+        #le dictionnaire de(s) DataFrame(s)
+        dic = self.Dic
         
         if selection_init == []:
             tkMessageBox.showinfo ("Attention", 'Il faut choisir une colonne')
