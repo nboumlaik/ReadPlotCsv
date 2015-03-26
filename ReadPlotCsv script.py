@@ -42,8 +42,8 @@ class guiplot_tk (Tkinter.Tk):
         self.initialize ()
         
     def init_params (self):
-        plt.close ('all')
-        
+        #plt.close ('all')
+        self.figure = plt.figure()
         self.do_fill_between = True
         self.df_ploted = None
         self.max_insample = None
@@ -346,7 +346,7 @@ class guiplot_tk (Tkinter.Tk):
             tkMessageBox.showinfo ("Attention", 'Il faut choisir une colonne')
             return
         
-        if self.new_graph.get() == 1:
+        if self.new_graph.get() == 1 and self.df_ploted is not None:
             self.init_params ()
         
         self.max_insample = self.max_Insample_inDic (dic, selection_init)
@@ -364,7 +364,7 @@ class guiplot_tk (Tkinter.Tk):
         if isinstance (selection, str) or isinstance (selection, unicode):
             selection = [selection]
         
-        ax = plt.subplot ()
+        ax = self.figure.add_subplot (111)
         for label in selection:
             if self.i_color >= len (self.colors):
                 self.i_color = 0
