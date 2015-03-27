@@ -100,7 +100,7 @@ class guiplot_tk (Tkinter.Tk):
                     nom = self.Ftext (nom_)
 
                 else:
-                    nom = nom [1:-4]
+                    nom = nom_ [1:-4]
                     
                 if nom == "":
                     nom = nom_ [1:-4]
@@ -202,6 +202,10 @@ class guiplot_tk (Tkinter.Tk):
             #bouton pour faire le graphique
             Boutonplot = Tkinter.Button (tk_listbox, text ='plot', command = lambda : self.plot ())
             Boutonplot.pack ()
+
+            #bouton pour faire le diagrame
+            Boutonplot = Tkinter.Button (tk_listbox, text ='diagrame', command = lambda : self.plot (do_hist = True, do_graphe = False))
+            Boutonplot.pack ()
             
             #bouton pour fermer la fenetre cree
             Boutonrest = Tkinter.Button (tk_listbox, text ='fermer', command = tk_listbox.destroy)
@@ -294,6 +298,8 @@ class guiplot_tk (Tkinter.Tk):
         skew = stats ['skew']
         kur = stats ['kur']
         sortino = stats ['Sortino']
+        DDmu = stats ['DD/mu']
+        dateDD = stats ['DateDD']
         
         if stats ['coef'] == 100:
             str_precent = '\%'
@@ -305,6 +311,8 @@ class guiplot_tk (Tkinter.Tk):
         sharpe_ratio_str = ' $ \\frac{\mu}{\sigma}=' + str("%.2f" % sharpe_ratio) + '$'
         DD_str = ' $\mathrm{DDmax}=' + str("%.2f" % DD) + '\% $'
         sortino_str = ' $\mathrm{Sortino}=' + str("%.2f" % sortino) + '$'
+        DDmu_str = ' $\\frac{DD}{\mu}=' + str("%.2f" % DDmu) + '$'
+        dateDD_str = ' $\mathrm{Date DD}= ' + dateDD + '$'
         
         max_str = ' $\mathrm{max}=' + str("%.2f" % max_f) + str_precent+'$'
         min_str = ' $\mathrm{min}=' + str("%.2f" % min_f) + str_precent+'$'
@@ -312,7 +320,7 @@ class guiplot_tk (Tkinter.Tk):
         skew_str = ' $\mathrm{Skewness}=' + str("%.2f" % skew)+ '$'
         kur_str = ' $\mathrm{Kurtosis}=' + str("%.2f" % kur) + '$'
         
-        text_indic =  rdmt_str + vol_str + sharpe_ratio_str + DD_str + sortino_str
+        text_indic =  rdmt_str + vol_str + sharpe_ratio_str + DD_str + sortino_str + DDmu_str + dateDD_str
         text_stats = max_str + min_str + mean_str + skew_str + kur_str
         text_indic_stats = text_indic + ' ' + text_stats
         
@@ -333,7 +341,7 @@ class guiplot_tk (Tkinter.Tk):
             
         return textstr
                 
-    def plot (self):
+    def plot (self, do_graphe = True, do_hist = False):
         ''' faire un graph de(s) label(s) selectionne de(s) df dans dic, ainsi que les stats et les indicateur des perfs'''
         
         #la selection de l'utilisateur
@@ -396,7 +404,11 @@ class guiplot_tk (Tkinter.Tk):
                     legende_sample = ax.legend (handles = [green_patch])
                     self.do_fill_between = False
                     
-                ax.plot (self.df_ploted.index, self.df_ploted [label], label = label, color = colore)
+                if do_graphe:
+                    ax.plot (self.df_ploted.index, self.df_ploted [label], label = label,  color = colore)
+                elif do_hist:
+                    ax.hist(self.df_ploted [label], bins = 100, alpha=0.5, label = label)
+                    
                 self.i_color += 1
                 self.i_text_u -= 0.055 
 
@@ -406,7 +418,11 @@ class guiplot_tk (Tkinter.Tk):
                 else:
                     self.df_ploted [label] = df [label]
                 
-                ax.plot (self.df_ploted.index, self.df_ploted [label], label = label,  color = colore)
+                if do_graphe:
+                    ax.plot (self.df_ploted.index, self.df_ploted [label], label = label,  color = colore)
+                elif do_hist:
+                    ax.hist(self.df_ploted [label], bins = 100, alpha=0.5, label = label)
+                    
                 ax.legend()
                 self.i_color += 1
             
@@ -419,6 +435,12 @@ class guiplot_tk (Tkinter.Tk):
                 
         plt.show ()
         
+        
+    def int_to_month (self, int_month):
+        int_month = int (int_month)
+        list_month = ['', 'Janvier', 'Fevrier', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Aout', 'Septembre', 'Octobre', 'Novembre', 'Decembre']
+        return list_month [int_month]
+    
     def calc_stats (self, serie):
         serie = serie.dropna ()
         if serie.name == 'GAV_pct' or serie.name == 'NAV_pct':
@@ -449,8 +471,13 @@ class guiplot_tk (Tkinter.Tk):
             coef = 100
         else:
             coef = 1
-            
+        
+        serieDD = (serie - max_rolling).dropna ()
         DD = min ((serie - max_rolling).dropna ())
+        dateDD = serieDD.loc [(serieDD==DD)].index [0]
+        mois = self.int_to_month (dateDD.month)
+        dateDD = str (dateDD.day) + ' ' + mois + ' ' + str (dateDD.year)
+        
         dic_stat = {}
         dic_stat['rdmt'] = rdmt
         dic_stat['vol'] = vol
@@ -463,6 +490,8 @@ class guiplot_tk (Tkinter.Tk):
         dic_stat['skew'] =  skew
         dic_stat['coef'] = coef
         dic_stat['Sortino'] = sortino
+        dic_stat['DD/mu'] = abs (DD)/rdmt
+        dic_stat['DateDD'] = dateDD
         
         return dic_stat
 
