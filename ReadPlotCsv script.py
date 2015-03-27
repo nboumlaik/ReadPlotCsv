@@ -204,7 +204,7 @@ class guiplot_tk (Tkinter.Tk):
             Boutonplot.pack ()
 
             #bouton pour faire le diagrame
-            Boutonplot = Tkinter.Button (tk_listbox, text ='diagrame', command = lambda : self.plot (do_hist = True, do_graphe = False))
+            Boutonplot = Tkinter.Button (tk_listbox, text ='histogramme', command = lambda : self.plot (do_hist = True, do_graphe = False))
             Boutonplot.pack ()
             
             #bouton pour fermer la fenetre cree
