@@ -9,10 +9,12 @@ import collections
 import matplotlib.patches as mpatches
 import numpy as np
 import FileDialog
-from scipy.special import _ufuncs_cxx
-from scipy.sparse.csgraph import _validation
 from scipy import stats
 import tkMessageBox
+from scipy.special import _ufuncs_cxx #pour py2exe
+from scipy.sparse.csgraph import _validation #pour py2exe
+import os
+
 
 
 class guiplot_tk (Tkinter.Tk):
@@ -34,9 +36,13 @@ class guiplot_tk (Tkinter.Tk):
         self.do_stats = Tkinter.IntVar ()
         self.new_graph = Tkinter.IntVar ()
         self.In_sample = Tkinter.IntVar ()
+        self.legend_out = Tkinter.IntVar ()
         self.listbox = None
         self.Dic = None
         self.In_sample.set (1)
+        self.new_graph.set (1)
+        self.nb_plot = 0
+        self.index_fin = -1
         
         self.init_params ()
         self.initialize ()
@@ -84,8 +90,7 @@ class guiplot_tk (Tkinter.Tk):
         chemin = fpath [:fpath.rfind ("/")]
         
         if chemin == '':
-            if self.chemin_ is None:
-                self.chemin_ = 'C:/Users/%s' % self.user
+            self.chemin_ = 'C:/Users/%s' % self.user
         else:
             self.chemin_ = chemin
             
@@ -93,39 +98,40 @@ class guiplot_tk (Tkinter.Tk):
             #construire la liste de(s) chemin(s)
             fpath = self.splitlist (fpath)
             dic = {}
-            if len (fpath) == 1:
-                fpath = fpath[0]
-                nom_ = fpath [fpath.rfind ("/"):]
-                if len (nom_)> 30:
-                    nom = self.Ftext (nom_)
+            #on stock les df dans dic
+            for p in fpath:
+                try:
+                    p.decode()
+                except:
+                    p = p.decode('utf-8')
+                    
+                nom_init = p [p.rfind ("/"):]
+                
+                if len (nom_init) > 30:
+                    nom = self.Ftext (nom_init)
 
                 else:
-                    nom = nom_ [1:-4]
+                    nom = nom_init [1:-4]
                     
                 if nom == "":
-                    nom = nom_ [1:-4]
-                df = pd.read_csv (fpath, index_col = 0, sep =",")
-                if len (df.columns) == 0:
-                    df = pd.read_csv (fpath, index_col = 0, sep =";")
-                df.index = pd.DatetimeIndex (df.index)
-                dic [nom] = df
-            
-            elif len (fpath) > 1:
-                #on stock les df dans dic
-                for p in fpath:
-                    nom_ = p [p.rfind ("/"):]
-                    if len (nom_)> 30:
-                        nom = self.Ftext (nom_)
-
-                    else:
-                        nom = nom [1:-4]
-                        
-                    if nom == "":
-                        nom = nom_ [1:-4]
-                        
-                    df = pd.read_csv (p, index_col = 0)
+                    nom = nom_init [1:-4]
+                
+                  
+                df = pd.read_csv (p, index_col = 0)
+                if len (df.columns)  == 0:
+                    try:
+                        df = pd.read_csv (p, index_col = 0, sep = ";")
+                    except:
+                        pass
+                try:
                     df.index = pd.DatetimeIndex (df.index)
-                    dic [nom] = df
+                except:
+                    pass
+                try:
+                    df.index = pd.to_datetime (df.index, format='%Y%m%d')
+                except:
+                    pass
+                dic [nom] = df
 
             return dic
             
@@ -148,6 +154,7 @@ class guiplot_tk (Tkinter.Tk):
         elif Dic is not None:
             #test des colonnes vides (messageBox)
             self.controle_nan (Dic)
+            self.Dic = Dic
             
             columns = ()
             #creation d'une nouvelle fenetre
@@ -174,9 +181,9 @@ class guiplot_tk (Tkinter.Tk):
                 Nfiles += 1
                 columns = columns + tuple (df.columns)
             
-            self.Dic = Dic
             columns = [x for x, y in collections.Counter(columns).items () if y == Nfiles]
             columns.sort ()
+            
             #afficher les colonnes de df dans la listbox
             for item in columns:
                 listbox.insert (Tkinter.END, item)
@@ -197,6 +204,10 @@ class guiplot_tk (Tkinter.Tk):
             
             #case pour insample
             BoutonChoser = Tkinter.Checkbutton(tk_listbox, variable = self.In_sample, text = "In Sample")
+            BoutonChoser.pack ()
+                      
+            #case pour la legend
+            BoutonChoser = Tkinter.Checkbutton(tk_listbox, variable = self.legend_out, text = "Decaler la legend")
             BoutonChoser.pack ()
             
             #bouton pour faire le graphique
@@ -248,15 +259,19 @@ class guiplot_tk (Tkinter.Tk):
                 
         return columns_vide
     
-    def dic_to_df (self, dic, selection_):
+    def dic_to_df (self, dic, selection_init):
+        '''transforme le dic des df en un seul df, avec que les colonnes selectionnees par l'utilisateur'''
         df = pd.DataFrame ()
+        
         selection = []
         for key in dic.keys ():
             df_ = dic [key]
             for column in df_:
+                #nom de la calonne + le nom du fichier
                 df [column+'_'+key] = df_ [column]
-                if column in selection_:
+                if column in selection_init:
                     selection  = selection + [column + '_' + key]
+                    
         if len (selection) == 1:
             selection = selection [0]
         
@@ -265,23 +280,17 @@ class guiplot_tk (Tkinter.Tk):
     def max_Insample_inDic (self, dic, selection):
         if self.In_sample.get() == 1:
             max_insample = None
-            
             for key in dic.keys ():
                 df = dic [key]
-                
                 if 'InSample' not in df.columns:
                     df ['InSample'] = 0
-                    
                 if max_insample is None:
-                    max_insample = df ['InSample'].dropna () 
-                     
+                    max_insample = df ['InSample'].dropna ()    
                 else:
                     if len (df.index) < len (max_insample.index):
-                        df = df.reindex (index = max_insample.index, method = 'ffill')
-                        
+                        df = df.reindex (index = max_insample.index, method = 'ffill')  
                     elif len (df.index) > len (max_insample.index):
-                        max_insample = max_insample.reindex (index = df.index, method = 'ffill', inplace = True)
-                        
+                        max_insample = max_insample.reindex (index = df.index, method = 'ffill', inplace = True) 
                     max_insample = np.maximum (df ['InSample'], max_insample)
         else:
             max_insample = 0
@@ -300,6 +309,10 @@ class guiplot_tk (Tkinter.Tk):
         sortino = stats ['Sortino']
         DDmu = stats ['DD/mu']
         dateDD = stats ['DateDD']
+        bm = stats['BM'][0]
+        wm = stats['WM'][0]
+        dtbm = stats['BM'][1]
+        dtwm = stats['WM'][1]
         
         if stats ['coef'] == 100:
             str_precent = '\%'
@@ -309,10 +322,11 @@ class guiplot_tk (Tkinter.Tk):
         rdmt_str = '$\mu=' + str("%.2f" % rdmt) + '\% $'
         vol_str = ' $\sigma=' + str("%.2f" % vol) + '\% $'
         sharpe_ratio_str = ' $ \\frac{\mu}{\sigma}=' + str("%.2f" % sharpe_ratio) + '$'
-        DD_str = ' $\mathrm{DDmax}=' + str("%.2f" % DD) + '\% $'
+        DD_str = ' $\mathrm{DDmax}=' + str("%.2f" % DD) + '\%('+ dateDD + ')$'
         sortino_str = ' $\mathrm{Sortino}=' + str("%.2f" % sortino) + '$'
         DDmu_str = ' $\\frac{DD}{\mu}=' + str("%.2f" % DDmu) + '$'
-        dateDD_str = ' $\mathrm{Date DD}= ' + dateDD + '$'
+        BM = ' $\mathrm{BM}=' + str("%.2f" % bm) + '\% (' + dtbm + ')$'
+        WM = ' $\mathrm{WM}=' + str("%.2f" % wm) + '\% (' + dtwm + ')$'
         
         max_str = ' $\mathrm{max}=' + str("%.2f" % max_f) + str_precent+'$'
         min_str = ' $\mathrm{min}=' + str("%.2f" % min_f) + str_precent+'$'
@@ -320,7 +334,7 @@ class guiplot_tk (Tkinter.Tk):
         skew_str = ' $\mathrm{Skewness}=' + str("%.2f" % skew)+ '$'
         kur_str = ' $\mathrm{Kurtosis}=' + str("%.2f" % kur) + '$'
         
-        text_indic =  rdmt_str + vol_str + sharpe_ratio_str + DD_str + sortino_str + DDmu_str + dateDD_str
+        text_indic =  rdmt_str + vol_str + sharpe_ratio_str + DD_str + sortino_str + DDmu_str + BM + WM
         text_stats = max_str + min_str + mean_str + skew_str + kur_str
         text_indic_stats = text_indic + ' ' + text_stats
         
@@ -342,8 +356,8 @@ class guiplot_tk (Tkinter.Tk):
         return textstr
                 
     def plot (self, do_graphe = True, do_hist = False):
-        ''' faire un graph de(s) label(s) selectionne de(s) df dans dic, ainsi que les stats et les indicateur des perfs'''
-        
+        ''' faire un graph de(s) ou un histogramme label(s) selectionne de(s) df dans dic, ainsi que les stats et les indicateur des perfs'''
+        #self.clear_ ()
         #la selection de l'utilisateur
         selection_init = self.getselection (listbox = self.listbox)
         
@@ -371,7 +385,14 @@ class guiplot_tk (Tkinter.Tk):
         df ['InSample'] = self.max_insample
         if isinstance (selection, str) or isinstance (selection, unicode):
             selection = [selection]
-        
+
+        #on calcul le nombre des bins pour l'histogramme
+        if do_hist:
+            bin_init = 200
+            for column in selection:
+                bin = len (df [column].dropna()) / 20
+                bin = min (bin, bin_init)
+                
         ax = self.figure.add_subplot (111)
         for label in selection:
             if self.i_color >= len (self.colors):
@@ -396,9 +417,14 @@ class guiplot_tk (Tkinter.Tk):
                 props = dict (boxstyle = 'round', facecolor = colore, alpha = 0.2)  
                 ax.text (self.i_text, self.i_text_u, textstr, transform=ax.transAxes, fontsize=18,
                         verticalalignment='center', bbox=props)
+                
+                #la fin de la periode de backtest
+                self.index_fin = self.calc_index_fin(serie = df [label]) [1]
+                if self.index_fin is not None:
+                    ax.fill_between (df.index, min_value, max_value+0.1*max_value, where = df.index>self.index_fin, facecolor='gray', interpolate = False, alpha = 0.2)
                 #represantation de la zone d'apprentissage
                 if sum (df['InSample'].dropna()) > 1 and self.do_fill_between:
-                    ax.fill_between(df.index, min_value, max_value+0.1*max_value, where = df['InSample']>0, facecolor='gray', interpolate = False, alpha = 0.2)
+                    ax.fill_between (df.index, min_value, max_value+0.1*max_value, where = df['InSample']>0, facecolor='gray', interpolate = False, alpha = 0.2)
                     
                     green_patch = mpatches.Patch (color = 'gray', label = 'In Sample', alpha = 0.2)
                     legende_sample = ax.legend (handles = [green_patch])
@@ -406,11 +432,12 @@ class guiplot_tk (Tkinter.Tk):
                     
                 if do_graphe:
                     ax.plot (self.df_ploted.index, self.df_ploted [label], label = label,  color = colore)
-                elif do_hist:
-                    ax.hist(self.df_ploted [label], bins = 100, alpha=0.5, label = label)
                     
+                elif do_hist:
+                    ax.hist(self.df_ploted [label], bins = bin, alpha=0.5, label = label)
+                    
+                self.i_text_u -= 0.055
                 self.i_color += 1
-                self.i_text_u -= 0.055 
 
             else:
                 if self.df_ploted is None:
@@ -421,18 +448,21 @@ class guiplot_tk (Tkinter.Tk):
                 if do_graphe:
                     ax.plot (self.df_ploted.index, self.df_ploted [label], label = label,  color = colore)
                 elif do_hist:
-                    ax.hist(self.df_ploted [label], bins = 100, alpha=0.5, label = label)
+                    ax.hist(self.df_ploted [label].dropna(), bins = bin, alpha=0.5, label = label)
                     
                 ax.legend()
                 self.i_color += 1
-            
+        
         if self.do_indicateurs.get () == 1 or self.do_stats.get () == 1:
-            #self.i_text_u -= 0.055  
+            self.i_text_u -= 0.055  
             ax.legend (loc = 4)
         else:
             ax.legend (loc = 2)
+        if self.legend_out.get():
+            ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         ax.grid (True)
-                
+        
+        self.nb_plot += 1  
         plt.show ()
         
         
@@ -441,8 +471,26 @@ class guiplot_tk (Tkinter.Tk):
         list_month = ['', 'Janvier', 'Fevrier', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Aout', 'Septembre', 'Octobre', 'Novembre', 'Decembre']
         return list_month [int_month]
     
+    def calc_index_fin (self, serie):
+        if 'NAV' in serie.name or 'GAV' in serie.name:
+            rdm_ = serie.diff()
+            i = -1
+            rdm_i = 0
+            tol_iter = -10
+            while rdm_i == 0:
+                index_fin = rdm_.index [i]
+                rdm_i = rdm_.loc [index_fin]
+                i -= 1
+                
+            serie = serie.loc [serie.index [0]:index_fin].copy()
+        else:
+            index_fin = None
+        
+        return (serie, index_fin)
+    
     def calc_stats (self, serie):
-        serie = serie.dropna ()
+        serie = self.calc_index_fin (serie=serie)  [0]
+        
         if serie.name == 'GAV_pct' or serie.name == 'NAV_pct':
             i = 0
             while serie [i] == 0:
@@ -467,16 +515,31 @@ class guiplot_tk (Tkinter.Tk):
         skew = stats.skew (rdmt_days)
         sortino = rdmt / vol_rdmNeg
         
-        if abs (mean_f) <= 1:
-            coef = 100
-        else:
-            coef = 1
+        rdmt_days_byYM = rdmt_days.groupby([lambda x: x.year,lambda x: x.month]).sum()
+        BM = max (rdmt_days_byYM)
+        WM = min (rdmt_days_byYM)
         
+        date_BM = rdmt_days_byYM.loc [rdmt_days_byYM == BM].index[0]
+        date_WM = rdmt_days_byYM.loc [rdmt_days_byYM == WM].index[0]
+        
+        dtBM = date_BM
+        mois = self.int_to_month (dtBM[1])
+        dtBM = mois + ' ' + str (dtBM[0])
+        
+        dtWM = date_WM
+        mois = self.int_to_month (dtWM[1])
+        dtWM = mois + ' ' + str (dtWM[0])
+
         serieDD = (serie - max_rolling).dropna ()
         DD = min ((serie - max_rolling).dropna ())
         dateDD = serieDD.loc [(serieDD==DD)].index [0]
         mois = self.int_to_month (dateDD.month)
         dateDD = str (dateDD.day) + ' ' + mois + ' ' + str (dateDD.year)
+        
+        if abs (mean_f) <= 1:
+            coef = 100
+        else:
+            coef = 1
         
         dic_stat = {}
         dic_stat['rdmt'] = rdmt
@@ -492,8 +555,14 @@ class guiplot_tk (Tkinter.Tk):
         dic_stat['Sortino'] = sortino
         dic_stat['DD/mu'] = abs (DD)/rdmt
         dic_stat['DateDD'] = dateDD
+        dic_stat['BM'] = (BM * 100, dtBM)
+        dic_stat['WM'] = (WM * 100, dtWM)
         
         return dic_stat
+    
+    def clear_ (self):
+        clear = lambda: os.system('cls')
+        clear()
 
 if __name__ == "__main__":
     app = guiplot_tk (None)
