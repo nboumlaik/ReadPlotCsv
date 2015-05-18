@@ -86,8 +86,17 @@ class guiplot_tk (Tkinter.Tk):
             fpath = tkFileDialog.askopenfilenames (defaultextension = ".csv", initialfile='*.csv', initialdir='C:/Users/%s' % self.user)
         else:
             fpath = tkFileDialog.askopenfilenames (defaultextension = ".csv", initialfile='*.csv', initialdir = self.chemin_)
-            
-        chemin = fpath [:fpath.rfind ("/")]
+        
+        try:
+            #construire la liste de(s) chemin(s)
+            fpath = self.splitlist (fpath)
+            chemin = fpath [0]
+            chemin = chemin [:chemin.rfind ("/")]
+        except:
+            if self.chemin_ is not None:
+                return
+            else:
+                chemin = ''
         
         if chemin == '':
             self.chemin_ = 'C:/Users/%s' % self.user
@@ -95,8 +104,6 @@ class guiplot_tk (Tkinter.Tk):
             self.chemin_ = chemin
             
         try:
-            #construire la liste de(s) chemin(s)
-            fpath = self.splitlist (fpath)
             dic = {}
             #on stock les df dans dic
             for p in fpath:
