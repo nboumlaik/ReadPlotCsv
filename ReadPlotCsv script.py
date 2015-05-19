@@ -42,7 +42,7 @@ class guiplot_tk (Tkinter.Tk):
         self.In_sample.set (1)
         self.new_graph.set (1)
         self.nb_plot = 0
-        self.index_fin = -1
+        self.index_fin = None
         
         self.init_params ()
         self.initialize ()
@@ -370,6 +370,8 @@ class guiplot_tk (Tkinter.Tk):
         
         #le dictionnaire de(s) DataFrame(s)
         dic = self.Dic
+        #on calcul self.index_fin
+        self.calc_index_fin ()
         
         if selection_init == []:
             tkMessageBox.showinfo ("Attention", 'Il faut choisir une colonne')
@@ -426,7 +428,6 @@ class guiplot_tk (Tkinter.Tk):
                         verticalalignment='center', bbox=props)
                 
                 #la fin de la periode de backtest
-                self.index_fin = self.calc_index_fin(serie = df [label]) [1]
                 if self.index_fin is not None:
                     ax.fill_between (df.index, min_value, max_value+0.1*max_value, where = df.index>self.index_fin, facecolor='gray', interpolate = False, alpha = 0.2)
                 #represantation de la zone d'apprentissage
@@ -478,25 +479,32 @@ class guiplot_tk (Tkinter.Tk):
         list_month = ['', 'Janvier', 'Fevrier', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Aout', 'Septembre', 'Octobre', 'Novembre', 'Decembre']
         return list_month [int_month]
     
-    def calc_index_fin (self, serie):
-        if 'NAV' in serie.name or 'GAV' in serie.name:
-            rdm_ = serie.diff()
-            i = -1
-            rdm_i = 0
-            tol_iter = -10
-            while rdm_i == 0:
-                index_fin = rdm_.index [i]
-                rdm_i = rdm_.loc [index_fin]
-                i -= 1
-                
-            serie = serie.loc [serie.index [0]:index_fin].copy()
-        else:
-            index_fin = None
-        
-        return (serie, index_fin)
+    def calc_index_fin (self):
+        for key in self.Dic.keys():
+            df = self.Dic [key]
+            if 'NAV_pct' in df.columns:
+                serie = df ['NAV_pct']
+                rdm_ = serie.diff()
+                i = -1
+                rdm_i = 0
+                tol_iter = -10
+                while rdm_i == 0:
+                    index_fin = rdm_.index [i]
+                    rdm_i = rdm_.loc [index_fin]
+                    i -= 1
+                    
+                serie = serie.loc [serie.index [0]:index_fin].copy()
+                if self.index_fin is not None:
+                    if index_fin < self.index_fin:
+                        self.index_fin = index_fin
+                else:
+                    self.index_fin = index_fin
+
+                   
+        return self.index_fin
     
     def calc_stats (self, serie):
-        serie = self.calc_index_fin (serie=serie)  [0]
+        serie = serie.loc [serie.index [0]:self.index_fin].copy()
         
         if serie.name == 'GAV_pct' or serie.name == 'NAV_pct':
             i = 0
