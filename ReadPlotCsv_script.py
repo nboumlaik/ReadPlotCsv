@@ -3,18 +3,21 @@
 import Tkinter
 import tkFileDialog
 import pandas as pd
+import matplotlib
+matplotlib.use ('TkAgg')
 from matplotlib import pyplot as plt
 import getpass
 import collections
 import matplotlib.patches as mpatches
 import numpy as np
-import FileDialog
+import FileDialog  # @UnusedImport
 from scipy import stats
 import tkMessageBox
-from scipy.special import _ufuncs_cxx #pour py2exe
-from scipy.sparse.csgraph import _validation #pour py2exe
+from scipy.special import _ufuncs_cxx #pour py2exe @UnusedImport
+from scipy.sparse.csgraph import _validation #pour py2exe @UnusedImport
 import os
-
+import ttk
+import datetime
 
 
 class guiplot_tk (Tkinter.Tk):
@@ -37,12 +40,17 @@ class guiplot_tk (Tkinter.Tk):
         self.new_graph = Tkinter.IntVar ()
         self.In_sample = Tkinter.IntVar ()
         self.legend_out = Tkinter.IntVar ()
+        self.do_rebase = Tkinter.IntVar ()
+        self.rebase_serie_chekb = False
+        
         self.listbox = None
         self.Dic = None
         self.In_sample.set (1)
         self.new_graph.set (1)
         self.nb_plot = 0
         self.index_fin = None
+        self.df_rebase = None
+
         
         self.init_params ()
         self.initialize ()
@@ -214,7 +222,10 @@ class guiplot_tk (Tkinter.Tk):
             BoutonChoser.pack ()
                       
             #case pour la legend
-            BoutonChoser = Tkinter.Checkbutton(tk_listbox, variable = self.legend_out, text = "Decaler la legend")
+            BoutonChoser = Tkinter.Checkbutton (tk_listbox, variable = self.legend_out, text = "Decaler la legend")
+            BoutonChoser.pack ()
+
+            BoutonChoser = Tkinter.Checkbutton (tk_listbox, variable = self.do_rebase, text = "Rebaser")
             BoutonChoser.pack ()
             
             #bouton pour faire le graphique
@@ -225,10 +236,55 @@ class guiplot_tk (Tkinter.Tk):
             Boutonplot = Tkinter.Button (tk_listbox, text ='histogramme', command = lambda : self.plot (do_hist = True, do_graphe = False))
             Boutonplot.pack ()
             
+            #bouton pour faire le diagrame
+            Boutonplot = Tkinter.Button (tk_listbox, text ='Rebase', command = lambda : self.rebase_serie ())
+            Boutonplot.pack ()
+            
             #bouton pour fermer la fenetre cree
             Boutonrest = Tkinter.Button (tk_listbox, text ='fermer', command = tk_listbox.destroy)
             Boutonrest.pack ()
 
+    def rebase_serie (self):
+        
+        self.sel_set = self.listbox.curselection()
+        
+        self.rebase_serie_chekb = True
+        
+        selection_init = self.getselection (listbox = self.listbox)
+        df, selection = self.dic_to_df (self.Dic, selection_init)
+        
+        if selection == []:
+            tkMessageBox.showinfo ("Attention", 'Il faut choisir une colonne')
+            return
+        
+        self.df_rebase = pd.DataFrame (df [selection].copy ())
+        
+        date_varcombo = Tkinter.StringVar()
+        root = Tkinter.Toplevel ()
+        root.grab_set ()
+        
+        label = Tkinter.Label (root, text = 'La date pour rebaser les séries', width = 20)
+        label.pack (padx = 5, pady = 5)
+        
+        combo = ttk.Combobox (root, textvariable = date_varcombo, state = 'readonly', width = 40)
+        combo ['values'] = self.df_rebase.index.tolist ()
+        combo.pack ()
+        
+        Bouton = Tkinter.Button (root, text = 'Valider', command = lambda : get_value_comb () )
+        Bouton.pack (padx = 5, pady = 5)
+        
+        if type (selection) == str:
+            selection = [selection]
+            
+        def get_value_comb ():
+            for i, _ in enumerate (self.sel_set):
+                self.listbox.selection_set (self.sel_set[i])
+            
+            date = datetime.datetime.strptime(date_varcombo.get (), "%Y-%m-%d %H:%M:%S")
+            if date != '':
+                for col in selection:
+                    self.df_rebase [col] = self.df_rebase [col] / self.df_rebase [col].loc [date]
+                            
     def getselection (self, listbox):
         '''Renvois le(s) colonnes selectionnee dans la listebox'''
         
@@ -362,6 +418,17 @@ class guiplot_tk (Tkinter.Tk):
             
         return textstr
                 
+    def get_min_max (self, serie):
+        max_value, min_value = np.max (serie), np.min (serie)
+        
+        while type (max_value) != np.float64:
+            max_value = np.max (max_value) * 1.
+            
+        while type (min_value) != np.float64:
+            min_value = np.min (min_value) * 1.
+            
+        return max_value, min_value
+    
     def plot (self, do_graphe = True, do_hist = False):
         ''' faire un graph de(s) ou un histogramme label(s) selectionne de(s) df dans dic, ainsi que les stats et les indicateur des perfs'''
         #self.clear_ ()
@@ -371,10 +438,17 @@ class guiplot_tk (Tkinter.Tk):
         #le dictionnaire de(s) DataFrame(s)
         dic = self.Dic
         #on calcul self.index_fin
-        self.calc_index_fin ()
+        try:
+            self.calc_index_fin ()
+        except:
+            self.index_fin = None
         
         if selection_init == []:
             tkMessageBox.showinfo ("Attention", 'Il faut choisir une colonne')
+            return
+        
+        if self.do_rebase.get() and self.df_rebase is None:
+            tkMessageBox.showinfo ("Attention", "Il faut rebaser une série, ou découchez la case 'Rebase'")
             return
         
         if self.new_graph.get() == 1 and self.df_ploted is not None:
@@ -383,24 +457,21 @@ class guiplot_tk (Tkinter.Tk):
         self.max_insample = self.max_Insample_inDic (dic, selection_init)
         df, selection = self.dic_to_df (dic, selection_init)
         
-        max_value, min_value = np.max (df [selection]), np.min (df [selection])
-        
-        while type (max_value) != np.float64:
-            max_value = np.max (max_value) * 1.
+        if self.do_rebase.get ():
+            max_value, min_value = self.get_min_max (self.df_rebase [selection])
+        else:
+            max_value, min_value = self.get_min_max (df [selection])
             
-        while type (min_value) != np.float64:
-            min_value = np.min (min_value) * 1.
-        
         df ['InSample'] = self.max_insample
         if isinstance (selection, str) or isinstance (selection, unicode):
             selection = [selection]
-
+            
         #on calcul le nombre des bins pour l'histogramme
         if do_hist:
             bin_init = 200
             for column in selection:
-                bin = len (df [column].dropna()) / 20
-                bin = min (bin, bin_init)
+                bin = len (df [column].dropna()) / 20  # @ReservedAssignment
+                bin = min (bin, bin_init)  # @ReservedAssignment
                 
         ax = self.figure.add_subplot (111)
         for label in selection:
@@ -414,15 +485,15 @@ class guiplot_tk (Tkinter.Tk):
                 
                 out_of_sample = df [df ['InSample']<1].copy ()
                 out_of_sample = out_of_sample [label].dropna ()
-
+                
                 stats = self.calc_stats (out_of_sample)
                 textstr = self.choice_user_indi (stats)
-                    
+                
                 if self.df_ploted is None:
                     self.df_ploted = pd.DataFrame (df [label])
                 else:
                     self.df_ploted [label] = df [label]
-                    
+                
                 props = dict (boxstyle = 'round', facecolor = colore, alpha = 0.2)  
                 ax.text (self.i_text, self.i_text_u, textstr, transform=ax.transAxes, fontsize=18,
                         verticalalignment='center', bbox=props)
@@ -435,10 +506,13 @@ class guiplot_tk (Tkinter.Tk):
                     ax.fill_between (df.index, min_value, max_value+0.1*max_value, where = df['InSample']>0, facecolor='gray', interpolate = False, alpha = 0.2)
                     
                     green_patch = mpatches.Patch (color = 'gray', label = 'In Sample', alpha = 0.2)
-                    legende_sample = ax.legend (handles = [green_patch])
+                    legende_sample = ax.legend (handles = [green_patch])  # @UnusedVariable
                     self.do_fill_between = False
-                    
-                if do_graphe:
+                
+                if self.do_rebase.get():
+                    ax.plot (self.df_rebase.index, self.df_rebase [label], label = label,  color = colore) 
+                     
+                elif do_graphe:
                     ax.plot (self.df_ploted.index, self.df_ploted [label], label = label,  color = colore)
                     
                 elif do_hist:
@@ -453,27 +527,30 @@ class guiplot_tk (Tkinter.Tk):
                 else:
                     self.df_ploted [label] = df [label]
                 
-                if do_graphe:
+                if self.do_rebase.get ():
+                    ax.plot (self.df_rebase.index, self.df_rebase [label], label = label,  color = colore) 
+                     
+                elif do_graphe:
                     ax.plot (self.df_ploted.index, self.df_ploted [label], label = label,  color = colore)
+                    
                 elif do_hist:
-                    ax.hist(self.df_ploted [label].dropna(), bins = bin, alpha=0.5, label = label)
+                    ax.hist(self.df_ploted [label].dropna(), bins = bin, alpha = 0.5, label = label)
                     
                 ax.legend()
                 self.i_color += 1
-        
+                
         if self.do_indicateurs.get () == 1 or self.do_stats.get () == 1:
             self.i_text_u -= 0.055  
             ax.legend (loc = 4)
         else:
             ax.legend (loc = 2)
         if self.legend_out.get():
-            ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            ax.legend (loc = 'center left', bbox_to_anchor = (1, 0.5))
         ax.grid (True)
         
         self.nb_plot += 1  
         plt.show ()
-        
-        
+              
     def int_to_month (self, int_month):
         int_month = int (int_month)
         list_month = ['', 'Janvier', 'Fevrier', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Aout', 'Septembre', 'Octobre', 'Novembre', 'Decembre']
@@ -482,12 +559,13 @@ class guiplot_tk (Tkinter.Tk):
     def calc_index_fin (self):
         for key in self.Dic.keys():
             df = self.Dic [key]
+            df.dropna (inplace = True)
             if 'NAV_pct' in df.columns:
                 serie = df ['NAV_pct']
                 rdm_ = serie.diff()
                 i = -1
                 rdm_i = 0
-                tol_iter = -10
+                #tol_iter = -10
                 while rdm_i == 0:
                     index_fin = rdm_.index [i]
                     rdm_i = rdm_.loc [index_fin]
@@ -499,9 +577,8 @@ class guiplot_tk (Tkinter.Tk):
                         self.index_fin = index_fin
                 else:
                     self.index_fin = index_fin
-
-                   
-        return self.index_fin
+                               
+        return df
     
     def calc_stats (self, serie):
         serie = serie.loc [serie.index [0]:self.index_fin].copy()
@@ -544,7 +621,7 @@ class guiplot_tk (Tkinter.Tk):
         dtWM = date_WM
         mois = self.int_to_month (dtWM[1])
         dtWM = mois + ' ' + str (dtWM[0])
-
+        
         serieDD = (serie - max_rolling).dropna ()
         DD = min ((serie - max_rolling).dropna ())
         dateDD = serieDD.loc [(serieDD==DD)].index [0]
@@ -576,7 +653,7 @@ class guiplot_tk (Tkinter.Tk):
         return dic_stat
     
     def clear_ (self):
-        clear = lambda: os.system('cls')
+        clear = lambda: os.system ('cls')
         clear()
 
 if __name__ == "__main__":
