@@ -50,6 +50,7 @@ class guiplot_tk (Tkinter.Tk):
         self.nb_plot = 0
         self.index_fin = None
         self.df_rebase = None
+        self.style = Tkinter.StringVar ()
 
         
         self.init_params ()
@@ -224,14 +225,22 @@ class guiplot_tk (Tkinter.Tk):
             #case pour la legend
             BoutonChoser = Tkinter.Checkbutton (tk_listbox, variable = self.legend_out, text = "Decaler la legend")
             BoutonChoser.pack ()
-
+            
             BoutonChoser = Tkinter.Checkbutton (tk_listbox, variable = self.do_rebase, text = "Rebaser")
             BoutonChoser.pack ()
+            
+            label = Tkinter.Label (tk_listbox, text = 'Style des graphiques')
+            label.pack ()
+            
+            combo = ttk.Combobox (tk_listbox, textvariable = self.style, state = 'readonly')
+            combo ['values'] = [u'dark_background', u'bmh', u'grayscale', u'ggplot', u'fivethirtyeight']
+            combo.pack ()
+            combo.set ('grayscale')
             
             #bouton pour faire le graphique
             Boutonplot = Tkinter.Button (tk_listbox, text ='plot', command = lambda : self.plot ())
             Boutonplot.pack ()
-
+            
             #bouton pour faire le diagrame
             Boutonplot = Tkinter.Button (tk_listbox, text ='histogramme', command = lambda : self.plot (do_hist = True, do_graphe = False))
             Boutonplot.pack ()
@@ -472,81 +481,83 @@ class guiplot_tk (Tkinter.Tk):
             for column in selection:
                 bin = len (df [column].dropna()) / 20  # @ReservedAssignment
                 bin = min (bin, bin_init)  # @ReservedAssignment
+        #[u'dark_background', u'bmh', u'grayscale', u'ggplot', u'fivethirtyeight']
+        #plt.style.use (self.style.get())
+        with plt.style.context((self.style.get())):   
+            ax = self.figure.add_subplot (111)
+            for label in selection:
+                if self.i_color >= len (self.colors):
+                    self.i_color = 0
+                    self.i_text_u = 0.97
+                    
+                colore = self.colors [self.i_color]
                 
-        ax = self.figure.add_subplot (111)
-        for label in selection:
-            if self.i_color >= len (self.colors):
-                self.i_color = 0
-                self.i_text_u = 0.97
-                
-            colore = self.colors [self.i_color]
-            
-            if 'InSample' in df.columns and (self.do_indicateurs.get () == 1 or self.do_stats.get () == 1):
-                
-                out_of_sample = df [df ['InSample']<1].copy ()
-                out_of_sample = out_of_sample [label].dropna ()
-                
-                stats = self.calc_stats (out_of_sample)
-                textstr = self.choice_user_indi (stats)
-                
-                if self.df_ploted is None:
-                    self.df_ploted = pd.DataFrame (df [label])
+                if 'InSample' in df.columns and (self.do_indicateurs.get () == 1 or self.do_stats.get () == 1):
+                    
+                    out_of_sample = df [df ['InSample']<1].copy ()
+                    out_of_sample = out_of_sample [label].dropna ()
+                    
+                    stats = self.calc_stats (out_of_sample)
+                    textstr = self.choice_user_indi (stats)
+                    
+                    if self.df_ploted is None:
+                        self.df_ploted = pd.DataFrame (df [label])
+                    else:
+                        self.df_ploted [label] = df [label]
+                    
+                    props = dict (boxstyle = 'round', facecolor = colore, alpha = 0.2)  
+                    ax.text (self.i_text, self.i_text_u, textstr, transform=ax.transAxes, fontsize=18,
+                            verticalalignment='center', bbox=props)
+                    
+                    #la fin de la periode de backtest
+                    if self.index_fin is not None:
+                        ax.fill_between (df.index, min_value, max_value+0.1*max_value, where = df.index>self.index_fin, facecolor='gray', interpolate = False, alpha = 0.2)
+                    #represantation de la zone d'apprentissage
+                    if sum (df['InSample'].dropna()) > 1 and self.do_fill_between:
+                        ax.fill_between (df.index, min_value, max_value+0.1*max_value, where = df['InSample']>0, facecolor='gray', interpolate = False, alpha = 0.2)
+                        
+                        green_patch = mpatches.Patch (color = 'gray', label = 'In Sample', alpha = 0.2)
+                        legende_sample = ax.legend (handles = [green_patch])  # @UnusedVariable
+                        self.do_fill_between = False
+                    
+                    if self.do_rebase.get():
+                        ax.plot (self.df_rebase.index, self.df_rebase [label], label = label,  color = colore) 
+                         
+                    elif do_graphe:
+                        ax.plot (self.df_ploted.index, self.df_ploted [label], label = label,  color = colore)
+                        
+                    elif do_hist:
+                        ax.hist(self.df_ploted [label], bins = bin, alpha=0.5, label = label)
+                        
+                    self.i_text_u -= 0.055
+                    self.i_color += 1
+    
                 else:
-                    self.df_ploted [label] = df [label]
-                
-                props = dict (boxstyle = 'round', facecolor = colore, alpha = 0.2)  
-                ax.text (self.i_text, self.i_text_u, textstr, transform=ax.transAxes, fontsize=18,
-                        verticalalignment='center', bbox=props)
-                
-                #la fin de la periode de backtest
-                if self.index_fin is not None:
-                    ax.fill_between (df.index, min_value, max_value+0.1*max_value, where = df.index>self.index_fin, facecolor='gray', interpolate = False, alpha = 0.2)
-                #represantation de la zone d'apprentissage
-                if sum (df['InSample'].dropna()) > 1 and self.do_fill_between:
-                    ax.fill_between (df.index, min_value, max_value+0.1*max_value, where = df['InSample']>0, facecolor='gray', interpolate = False, alpha = 0.2)
+                    if self.df_ploted is None:
+                        self.df_ploted = pd.DataFrame (df [label])
+                    else:
+                        self.df_ploted [label] = df [label]
                     
-                    green_patch = mpatches.Patch (color = 'gray', label = 'In Sample', alpha = 0.2)
-                    legende_sample = ax.legend (handles = [green_patch])  # @UnusedVariable
-                    self.do_fill_between = False
-                
-                if self.do_rebase.get():
-                    ax.plot (self.df_rebase.index, self.df_rebase [label], label = label,  color = colore) 
-                     
-                elif do_graphe:
-                    ax.plot (self.df_ploted.index, self.df_ploted [label], label = label,  color = colore)
+                    if self.do_rebase.get ():
+                        ax.plot (self.df_rebase.index, self.df_rebase [label], label = label,  color = colore) 
+                         
+                    elif do_graphe:
+                        ax.plot (self.df_ploted.index, self.df_ploted [label], label = label,  color = colore)
+                        
+                    elif do_hist:
+                        ax.hist(self.df_ploted [label].dropna(), bins = bin, alpha = 0.5, label = label)
+                        
+                    ax.legend()
+                    self.i_color += 1
                     
-                elif do_hist:
-                    ax.hist(self.df_ploted [label], bins = bin, alpha=0.5, label = label)
-                    
-                self.i_text_u -= 0.055
-                self.i_color += 1
-
+            if self.do_indicateurs.get () == 1 or self.do_stats.get () == 1:
+                self.i_text_u -= 0.055  
+                ax.legend (loc = 4)
             else:
-                if self.df_ploted is None:
-                    self.df_ploted = pd.DataFrame (df [label])
-                else:
-                    self.df_ploted [label] = df [label]
-                
-                if self.do_rebase.get ():
-                    ax.plot (self.df_rebase.index, self.df_rebase [label], label = label,  color = colore) 
-                     
-                elif do_graphe:
-                    ax.plot (self.df_ploted.index, self.df_ploted [label], label = label,  color = colore)
-                    
-                elif do_hist:
-                    ax.hist(self.df_ploted [label].dropna(), bins = bin, alpha = 0.5, label = label)
-                    
-                ax.legend()
-                self.i_color += 1
-                
-        if self.do_indicateurs.get () == 1 or self.do_stats.get () == 1:
-            self.i_text_u -= 0.055  
-            ax.legend (loc = 4)
-        else:
-            ax.legend (loc = 2)
-        if self.legend_out.get():
-            ax.legend (loc = 'center left', bbox_to_anchor = (1, 0.5))
-        ax.grid (True)
+                ax.legend (loc = 2)
+            if self.legend_out.get():
+                ax.legend (loc = 'center left', bbox_to_anchor = (1, 0.5))
+            ax.grid (True)
         
         self.nb_plot += 1  
         plt.show ()
