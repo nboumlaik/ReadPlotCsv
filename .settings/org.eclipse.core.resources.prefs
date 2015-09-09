@@ -1,4 +1,3 @@
 eclipse.preferences.version=1
-encoding/Gui_main.py=iso-8859-1
-encoding/ReadPlotCsv_V2.py=cp1252
+encoding/ReadPlotCsv_old.py=cp1252
 encoding/ReadPlotCsv_script.py=iso-8859-1
