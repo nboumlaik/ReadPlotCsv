@@ -42,6 +42,7 @@ class guiplot_tk (Tkinter.Tk):
         self.In_sample = Tkinter.IntVar ()
         self.legend_out = Tkinter.IntVar ()
         self.do_rebase = Tkinter.IntVar ()
+        self.analyse = Tkinter.IntVar ()
         self.format_date = Tkinter.StringVar()
         self.header = Tkinter.StringVar()
         self.rebase_serie_chekb = False
@@ -52,16 +53,18 @@ class guiplot_tk (Tkinter.Tk):
         self.new_graph.set (1)
         self.nb_plot = 0
         self.index_fin = None
-        self.df_rebase = None
+        self.df_rebase = pd.DataFrame ()
         self.style = Tkinter.StringVar ()
 
+        self.ddate_analyse = None
+        self.fdate_analyse = None
         
         self.init_params ()
         self.initialize ()
         
     def init_params (self):
         #plt.close ('all')
-        self.figure = plt.figure()
+        self.figure = plt.figure ()
         self.do_fill_between = True
         self.df_ploted = None
         self.max_insample = None
@@ -69,7 +72,7 @@ class guiplot_tk (Tkinter.Tk):
         self.i_text = 0.01
         self.i_text_u = 0.97
         self.index_fin = None
-        
+
     def initialize (self):
         # Création le bouton importer 
         Boutonread = Tkinter.Button ( self, text = 'Importer', command = lambda  : self.dolistbox () )
@@ -95,7 +98,7 @@ class guiplot_tk (Tkinter.Tk):
         
         #advestis picture:
         can1 = Tkinter.Canvas (self, width = 190, height = 190, bg = 'white')
-        can1.create_image (100,100, image = self.photo)
+        can1.create_image (100, 100, image = self.photo)
         can1.grid (row = 0, column = 2, rowspan = 10, padx = 10, pady = 5)
         
     def Ftext (self, string, car1 = '_' , car2 = '(', n = 1 ):
@@ -165,7 +168,10 @@ class guiplot_tk (Tkinter.Tk):
 #                 except:
 #                     pass
                 try:
-                    df.index = pd.to_datetime (df.index, format = self.format_date.get())
+                    if self.format_date.get() != '':
+                        df.index = pd.to_datetime (df.index, format = self.format_date.get())
+                    else:
+                        pass
                 except Exception as e:
                     tkMessageBox.showinfo ("Date", str(e) + ' , please try again')
                     return
@@ -198,15 +204,15 @@ class guiplot_tk (Tkinter.Tk):
             
             columns = ()
             #creation d'une nouvelle fenetre
-            tk_listbox = Tkinter.Toplevel ()
-            tk_listbox.title ('Les colonnes')
-            scrollbar = Tkinter.Scrollbar (tk_listbox, orient="vertical")
+            self.tk_listbox = Tkinter.Toplevel ()
+            self.tk_listbox.title ('Les colonnes')
+            scrollbar = Tkinter.Scrollbar (self.tk_listbox, orient="vertical")
             
             #grab_set: makes sure that no mouse or keyboard events are sent to the wrong window
-            tk_listbox.grab_set ()
+            self.tk_listbox.grab_set ()
             
             #affecter la listbox a la nouvelle fenetre
-            listbox = Tkinter.Listbox (tk_listbox, width = 30, height = 20, yscrollcommand = scrollbar.set)
+            listbox = Tkinter.Listbox (self.tk_listbox, width = 30, height = 20, yscrollcommand = scrollbar.set)
             scrollbar.config (command = listbox.yview)
             scrollbar.pack (side = "right", fill = "y")
             listbox.pack (side = "left",fill = "both", expand = True)
@@ -231,54 +237,57 @@ class guiplot_tk (Tkinter.Tk):
             self.listbox = listbox
             
             #case pour Indicateurs de performance
-            BoutonChoser = Tkinter.Checkbutton(tk_listbox, variable = self.do_indicateurs, text = "Indicateurs de performance")
+            BoutonChoser = Tkinter.Checkbutton(self.tk_listbox, variable = self.do_indicateurs, text = "Indicateurs de performance")
             BoutonChoser.pack ()
         
             #case pour statistiques
-            BoutonChoser = Tkinter.Checkbutton(tk_listbox, variable = self.do_stats, text = "Statistique")
+            BoutonChoser = Tkinter.Checkbutton(self.tk_listbox, variable = self.do_stats, text = "Statistique")
             BoutonChoser.pack ()
 
             #case pour garder le mm graph
-            BoutonChoser = Tkinter.Checkbutton(tk_listbox, variable = self.new_graph, text = "Nouveau graphique")
+            BoutonChoser = Tkinter.Checkbutton(self.tk_listbox, variable = self.new_graph, text = "Nouveau graphique")
             BoutonChoser.pack ()
             
             #case pour insample
-            BoutonChoser = Tkinter.Checkbutton(tk_listbox, variable = self.In_sample, text = "In Sample")
+            BoutonChoser = Tkinter.Checkbutton(self.tk_listbox, variable = self.In_sample, text = "In Sample")
             BoutonChoser.pack ()
                       
             #case pour la legend
-            BoutonChoser = Tkinter.Checkbutton (tk_listbox, variable = self.legend_out, text = "Decaler la legend")
+            BoutonChoser = Tkinter.Checkbutton (self.tk_listbox, variable = self.legend_out, text = "No legend")
             BoutonChoser.pack ()
             
-            BoutonChoser = Tkinter.Checkbutton (tk_listbox, variable = self.do_rebase, text = "Rebaser")
+            BoutonChoser = Tkinter.Checkbutton (self.tk_listbox, variable = self.do_rebase, text = "Rebaser")
             BoutonChoser.pack ()
             
-            label = Tkinter.Label (tk_listbox, text = 'Style des graphiques')
+            BoutonChoser = Tkinter.Checkbutton (self.tk_listbox, variable = self.analyse, text = "Analyse")
+            BoutonChoser.pack ()
+            
+            label = Tkinter.Label (self.tk_listbox, text = 'Style des graphiques')
             label.pack ()
             
-            combo = ttk.Combobox (tk_listbox, textvariable = self.style, state = 'readonly')
+            combo = ttk.Combobox (self.tk_listbox, textvariable = self.style, state = 'readonly')
             combo ['values'] = [u'dark_background', u'bmh', u'grayscale', u'ggplot', u'fivethirtyeight']
             combo.pack ()
             combo.set ('grayscale')
             combo.bind ('<<ComboboxSelected>>', self.set_sele_lb)
             
             #bouton pour faire le graphique
-            Boutonplot = Tkinter.Button (tk_listbox, text ='plot', command = lambda : self.plot ())
+            Boutonplot = Tkinter.Button (self.tk_listbox, text ='plot', command = lambda : self.plot ())
             Boutonplot.pack ()
             
             #bouton pour faire le diagrame
-            Boutonplot = Tkinter.Button (tk_listbox, text ='histogramme', command = lambda : self.plot (do_hist = True, do_graphe = False))
+            Boutonplot = Tkinter.Button (self.tk_listbox, text ='histogramme', command = lambda : self.plot (do_hist = True, do_graphe = False))
             Boutonplot.pack ()
             
             #bouton pour faire le diagrame
-            Boutonplot = Tkinter.Button (tk_listbox, text ='Rebase', command = lambda : self.rebase_serie ())
+            Boutonplot = Tkinter.Button (self.tk_listbox, text = "Dates d'analyse", command = lambda : self.rebase_serie ())
             Boutonplot.pack ()
             
-#             Bouton = Tkinter.Button (tk_listbox, text = "Format de date", command = lambda : self.update_format_date ())
+#             Bouton = Tkinter.Button (self.tk_listbox, text = "Format de date", command = lambda : self.update_format_date ())
 #             Bouton.pack ()
             
             #bouton pour fermer la fenetre cree
-            Boutonrest = Tkinter.Button (tk_listbox, text ='fermer', command = tk_listbox.destroy)
+            Boutonrest = Tkinter.Button (self.tk_listbox, text ='fermer', command = self.tk_listbox.destroy)
             Boutonrest.pack ()
             
             def selection_listbox (ev):
@@ -335,17 +344,33 @@ class guiplot_tk (Tkinter.Tk):
         
         self.df_rebase = pd.DataFrame (df [selection].copy ())
         
-        date_varcombo = Tkinter.StringVar()
+        ddate_varcombo = Tkinter.StringVar()
+        fdate_varcombo = Tkinter.StringVar()
         root = Tkinter.Toplevel ()
         root.title ('Rebaser')
         root.grab_set ()
         
-        label = Tkinter.Label (root, text = "Veuillez choisir une date", width = 20)
+        label = Tkinter.Label (root, text = "Date de depart", width = 20)
         label.pack (padx = 5, pady = 5)
         
-        combo = ttk.Combobox (root, textvariable = date_varcombo, state = 'readonly', width = 40)
-        combo ['values'] = self.df_rebase.index.tolist ()
-        combo.pack ()
+        combo_d = ttk.Combobox (root, textvariable = ddate_varcombo, state = 'readonly', width = 40)
+        combo_d ['values'] = self.df_rebase.index.tolist ()
+        try:
+            combo_d.set(self.ddate_analyse)
+        except:
+            pass
+        combo_d.pack ()
+        
+        label = Tkinter.Label (root, text = "Date de fin", width = 20)
+        label.pack (padx = 5, pady = 5)
+        
+        combo_f = ttk.Combobox (root, textvariable = fdate_varcombo, state = 'readonly', width = 40)
+        combo_f ['values'] = self.df_rebase.index.tolist ()
+        try:
+            combo_f.set(self.fdate_analyse)
+        except:
+            pass
+        combo_f.pack ()
         
         Bouton = Tkinter.Button (root, text = 'Valider', command = lambda : get_value_comb () )
         Bouton.pack (padx = 5, pady = 5)
@@ -357,11 +382,39 @@ class guiplot_tk (Tkinter.Tk):
             for i, _ in enumerate (self.sel_set):
                 self.listbox.selection_set (self.sel_set[i])
             
-            date = datetime.datetime.strptime(date_varcombo.get (), "%Y-%m-%d %H:%M:%S")
-            if date != '':
+            try:
+                self.ddate_analyse = datetime.datetime.strptime (ddate_varcombo.get (), "%Y-%m-%d %H:%M:%S")
+            except:
+                pass
+            
+            try:
+                self.fdate_analyse = datetime.datetime.strptime (fdate_varcombo.get (), "%Y-%m-%d %H:%M:%S")
+            except:
+                pass
+            
+            try:
+                self.label_dfdepart_.forget ()
+            except:
+                pass
+            
+            self.label_dfdepart_ = Tkinter.Label (self.tk_listbox, text = 'de '  + str(self.ddate_analyse)[:10] + " à " +  str(self.fdate_analyse)[:10])
+            self.label_dfdepart_.pack ()
+                
+            if self.ddate_analyse != '':
                 for col in selection:
-                    self.df_rebase [col] = self.df_rebase [col] / self.df_rebase [col].loc [date]
-                            
+                    self.df_rebase [col] = self.df_rebase [col] / self.df_rebase [col].loc [self.ddate_analyse]
+                    self.rebase_date = self.ddate_analyse
+                    
+            try:
+                self.label_dfdepart.forget ()
+            except:
+                pass
+            
+            self.label_dfdepart = Tkinter.Label (root, text = 'de '  + str(self.ddate_analyse)[:10] + " à " +  str(self.fdate_analyse)[:10])
+            self.label_dfdepart.pack ()
+        
+            root.destroy ()
+                
     def getselection (self, listbox):
         '''Renvois le(s) colonnes selectionnee dans la listebox'''
         
@@ -520,7 +573,7 @@ class guiplot_tk (Tkinter.Tk):
             tkMessageBox.showinfo ("Attention", 'Il faut choisir une colonne')
             return
         
-        if self.do_rebase.get() and self.df_rebase is None:
+        if self.do_rebase.get() and len (self.df_rebase) == 0:
             tkMessageBox.showinfo ("Attention", "Il faut rebaser une série, ou découchez la case 'Rebase'")
             return
         
@@ -540,6 +593,9 @@ class guiplot_tk (Tkinter.Tk):
         if self.do_rebase.get ():
             try:
                 max_value, min_value = self.get_min_max (self.df_rebase [selection])
+                self.df_rebase ['InSample'] = 1
+                self.df_rebase ['InSample'].loc [df.index > self.rebase_date] = 0
+                df ['InSample'] = self.df_rebase ['InSample']
             except KeyError:
                 str_list = ""
                 for column_rebase in self.df_rebase.columns:
@@ -548,8 +604,9 @@ class guiplot_tk (Tkinter.Tk):
                 return
         else:
             max_value, min_value = self.get_min_max (df [selection])
+            df ['InSample'] = self.max_insample
             
-        df ['InSample'] = self.max_insample
+        
         if isinstance (selection, str) or isinstance (selection, unicode):
             selection = [selection]
         
@@ -570,12 +627,25 @@ class guiplot_tk (Tkinter.Tk):
                     
                 colore = self.colors [self.i_color]
                 
-                if 'InSample' in df.columns and (self.do_indicateurs.get () == 1 or self.do_stats.get () == 1):
+                if ('InSample' in df.columns or 'InSample' in self.df_rebase.columns)  and (self.do_indicateurs.get () == 1 or self.do_stats.get () == 1):
                     
-                    out_of_sample = df [df ['InSample']<1].copy ()
-                    out_of_sample = out_of_sample [label].dropna ()
+                    if self.do_rebase.get ():
+                        out_of_sampleOrAnalyse = self.df_rebase [label].loc [self.df_rebase ['InSample'] < 1]
+                        out_of_sampleOrAnalyse = pd.DataFrame (out_of_sampleOrAnalyse)
+                        
+                    elif self.analyse.get ():
+                        if self.ddate_analyse is None and self.fdate_analyse is None:
+                            tkMessageBox.showinfo ("Attention", "Il faut choisir une periode pour l'analyse")
+                            return
+                        out_of_sampleOrAnalyse = df.loc [(df.index >= self.ddate_analyse) & (df.index <= self.fdate_analyse)].dropna()
+                        df ['Analyse'] = 0
+                        df ['Analyse'].loc [(df.index >= self.ddate_analyse) & (df.index <= self.fdate_analyse)] = 1
+                    else:
+                        out_of_sampleOrAnalyse = df [df ['InSample']<1].copy ()
+                        
+                    out_of_sampleOrAnalyse = out_of_sampleOrAnalyse [label].dropna ()
                     
-                    stats = self.calc_stats (out_of_sample)
+                    stats = self.calc_stats (out_of_sampleOrAnalyse)
                     textstr = self.choice_user_indi (stats)
                     
                     if self.df_ploted is None:
@@ -589,14 +659,17 @@ class guiplot_tk (Tkinter.Tk):
                     
                     #la fin de la periode de backtest
                     if self.index_fin is not None:
-                        ax.fill_between (df.index, min_value, max_value+0.1*max_value, where = df.index>=self.index_fin, facecolor='gray', interpolate = False, alpha = 0.2)
+                        ax.fill_between (df.index, min_value, max_value + 0.1 * max_value, where = df.index>=self.index_fin, facecolor='gray', interpolate = False, alpha = 0.2)
                     #represantation de la zone d'apprentissage
                     if sum (df['InSample'].dropna()) > 1 and self.do_fill_between:
-                        ax.fill_between (df.index, min_value, max_value+0.1*max_value, where = df['InSample']>0, facecolor='gray', interpolate = False, alpha = 0.2)
-                        
+                        ax.fill_between (df.index, min_value, max_value + 0.1 * max_value, where = df['InSample'] > 0, facecolor='gray', interpolate = False, alpha = 0.2)
+                        if self.analyse.get ():
+                            ax.fill_between (df.index, min_value, max_value + 0.1 * max_value, where = df ['Analyse'] > 0, facecolor='green', interpolate = False, alpha = 0.2)
+                            
                         green_patch = mpatches.Patch (color = 'gray', label = 'In Sample', alpha = 0.2)
                         legende_sample = ax.legend (handles = [green_patch])  # @UnusedVariable
                         self.do_fill_between = False
+
                     
                     if self.do_rebase.get():
                         ax.plot (self.df_rebase.index, self.df_rebase [label], label = label,  color = colore) 
@@ -634,10 +707,20 @@ class guiplot_tk (Tkinter.Tk):
             else:
                 ax.legend (loc = 2)
             if self.legend_out.get():
-                ax.legend (loc = 'center left', bbox_to_anchor = (1, 0.5))
+                #ax.legend (loc = 'center left', bbox_to_anchor = (1, 0.5))
+                ax.legend_.remove ()
             ax.grid (True)
         
-        self.nb_plot += 1  
+        self.nb_plot += 1
+        if self.analyse.get () and (self.do_indicateurs.get () == 1 or self.do_stats.get () == 1):
+            title = 'From '  + str(self.ddate_analyse)[:10] + " to " +  str(self.fdate_analyse)[:10]
+            
+        elif (self.do_indicateurs.get () == 1 or self.do_stats.get () == 1):
+            title = 'From '  + str(out_of_sampleOrAnalyse.index[0])[:10] + " to " +  str(out_of_sampleOrAnalyse.index[-1])[:10]
+        else:
+            title = ""
+            
+        plt.title (title)
         plt.show ()
               
     def int_to_month (self, int_month):
@@ -670,7 +753,13 @@ class guiplot_tk (Tkinter.Tk):
         return df
     
     def calc_stats (self, serie):
-        serie = serie.loc [serie.index [0]:self.index_fin].copy()
+        
+        try:
+            fdate = self.fdate_analyse
+        except:
+            fdate = self.index_fin
+            
+        serie = serie.loc [serie.index [0]:fdate].copy()
         
         if serie.name == 'GAV_pct' or serie.name == 'NAV_pct':
             i = 0
@@ -685,13 +774,13 @@ class guiplot_tk (Tkinter.Tk):
         vol_rdmNeg = np.std (rdmt_days_neg) * np.sqrt (260)
         
         diff_days = len (pd.date_range (serie.index [0], serie.index [-1]))
-        rdmt = (serie.values [-1] - serie.values [0]) * (365. / diff_days)
+        rdmt = ((serie.values [-1] - serie.values [0]) / serie.values [0]) * (365. / diff_days)
         vol = np.std (rdmt_days) * np.sqrt (260)
         sharpe_ratio = rdmt / vol
         mean_f = np.mean (serie)
         max_f = max (serie)
         min_f = min (serie)
-        max_rolling = pd.expanding_max (serie)
+        
         kur = stats.kurtosis (rdmt_days)
         skew = stats.skew (rdmt_days)
         sortino = rdmt / vol_rdmNeg
@@ -711,6 +800,7 @@ class guiplot_tk (Tkinter.Tk):
         mois = self.int_to_month (dtWM[1])
         dtWM = mois + ' ' + str (dtWM[0])
         
+        max_rolling = pd.expanding_max (serie)
         serieDD = (serie - max_rolling).dropna ()
         DD = min ((serie - max_rolling).dropna ())
         dateDD = serieDD.loc [(serieDD==DD)].index [0]
