@@ -593,9 +593,11 @@ class guiplot_tk (Tkinter.Tk):
         if self.do_rebase.get ():
             try:
                 max_value, min_value = self.get_min_max (self.df_rebase [selection])
-                self.df_rebase ['InSample'] = 1
-                self.df_rebase ['InSample'].loc [df.index > self.rebase_date] = 0
-                df ['InSample'] = self.df_rebase ['InSample']
+#                 self.df_rebase ['InSample'] = 1
+#                 self.df_rebase ['InSample'].loc [df.index > self.rebase_date] = 0
+#                 df ['InSample'] = self.df_rebase ['InSample']
+                self.df_rebase ['InSample'] = self.max_insample
+                df ['InSample'] = self.max_insample
             except KeyError:
                 str_list = ""
                 for column_rebase in self.df_rebase.columns:
@@ -630,10 +632,17 @@ class guiplot_tk (Tkinter.Tk):
                 if ('InSample' in df.columns or 'InSample' in self.df_rebase.columns)  and (self.do_indicateurs.get () == 1 or self.do_stats.get () == 1):
                     
                     if self.do_rebase.get ():
-                        out_of_sampleOrAnalyse = self.df_rebase [label].loc [self.df_rebase ['InSample'] < 1]
+                        out_of_sampleOrAnalyse = self.df_rebase.loc [(df.index >= self.ddate_analyse) & (df.index <= self.fdate_analyse)] 
                         out_of_sampleOrAnalyse = pd.DataFrame (out_of_sampleOrAnalyse)
+                        if self.analyse.get ():
+                            if self.ddate_analyse is None and self.fdate_analyse is None:
+                                tkMessageBox.showinfo ("Attention", "Il faut choisir une periode pour l'analyse")
+                                return
+                            out_of_sampleOrAnalyse = out_of_sampleOrAnalyse.loc [(out_of_sampleOrAnalyse.index >= self.ddate_analyse) & (out_of_sampleOrAnalyse.index <= self.fdate_analyse)].dropna()
+                            df ['Analyse'] = 0
+                            df ['Analyse'].loc [(df.index >= self.ddate_analyse) & (df.index <= self.fdate_analyse)] = 1
                         
-                    elif self.analyse.get ():
+                    elif self.analyse.get () and not self.do_rebase.get ():
                         if self.ddate_analyse is None and self.fdate_analyse is None:
                             tkMessageBox.showinfo ("Attention", "Il faut choisir une periode pour l'analyse")
                             return
@@ -663,8 +672,6 @@ class guiplot_tk (Tkinter.Tk):
                     #represantation de la zone d'apprentissage
                     if sum (df['InSample'].dropna()) > 1 and self.do_fill_between:
                         ax.fill_between (df.index, min_value, max_value + 0.1 * max_value, where = df['InSample'] > 0, facecolor='gray', interpolate = False, alpha = 0.2)
-                        if self.analyse.get ():
-                            ax.fill_between (df.index, min_value, max_value + 0.1 * max_value, where = df ['Analyse'] > 0, facecolor='green', interpolate = False, alpha = 0.2)
                             
                         green_patch = mpatches.Patch (color = 'gray', label = 'In Sample', alpha = 0.2)
                         legende_sample = ax.legend (handles = [green_patch])  # @UnusedVariable
@@ -701,6 +708,9 @@ class guiplot_tk (Tkinter.Tk):
                     ax.legend()
                     self.i_color += 1
                     
+            if self.analyse.get () and self.ddate_analyse is not None and self.fdate_analyse is not None:
+                ax.fill_between (df.index, min_value, max_value + 0.1 * max_value, where = df ['Analyse'] > 0, facecolor='green', interpolate = False, alpha = 0.2)
+                
             if self.do_indicateurs.get () == 1 or self.do_stats.get () == 1:
                 self.i_text_u -= 0.055  
                 ax.legend (loc = 4)
@@ -769,7 +779,7 @@ class guiplot_tk (Tkinter.Tk):
             i = 0
             
         #serie = serie.iloc [i:-1].copy ()
-        rdmt_days = serie.diff ().dropna ()
+        rdmt_days = (serie.diff () / serie).dropna ()
         rdmt_days_neg = rdmt_days [rdmt_days < 0.]
         vol_rdmNeg = np.std (rdmt_days_neg) * np.sqrt (260)
         
@@ -801,8 +811,8 @@ class guiplot_tk (Tkinter.Tk):
         dtWM = mois + ' ' + str (dtWM[0])
         
         max_rolling = pd.expanding_max (serie)
-        serieDD = (serie - max_rolling).dropna ()
-        DD = min ((serie - max_rolling).dropna ())
+        serieDD = (serie / max_rolling - 1).dropna ()
+        DD = min (serieDD)
         dateDD = serieDD.loc [(serieDD==DD)].index [0]
         mois = self.int_to_month (dateDD.month)
         dateDD = str (dateDD.day) + ' ' + mois + ' ' + str (dateDD.year)
