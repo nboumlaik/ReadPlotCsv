@@ -43,6 +43,7 @@ class guiplot_tk (Tkinter.Tk):
         self.legend_out = Tkinter.IntVar ()
         self.do_rebase = Tkinter.IntVar ()
         self.analyse = Tkinter.IntVar ()
+        self.resultat_cumule = Tkinter.IntVar ()
         self.format_date = Tkinter.StringVar()
         self.header = Tkinter.StringVar()
         self.rebase_serie_chekb = False
@@ -242,6 +243,9 @@ class guiplot_tk (Tkinter.Tk):
         
             #case pour statistiques
             BoutonChoser = Tkinter.Checkbutton(self.tk_listbox, variable = self.do_stats, text = "Statistique")
+            BoutonChoser.pack ()
+
+            BoutonChoser = Tkinter.Checkbutton(self.tk_listbox, variable = self.resultat_cumule, text = "Resultat cumule")
             BoutonChoser.pack ()
 
             #case pour garder le mm graph
@@ -779,12 +783,20 @@ class guiplot_tk (Tkinter.Tk):
             i = 0
             
         #serie = serie.iloc [i:-1].copy ()
-        rdmt_days = (serie.diff () / serie).dropna ()
+        if self.resultat_cumule.get():
+            rdmt_days = (serie.diff () / serie).dropna ()
+        else:
+            rdmt_days = (serie.diff () ).dropna ()
+            
         rdmt_days_neg = rdmt_days [rdmt_days < 0.]
         vol_rdmNeg = np.std (rdmt_days_neg) * np.sqrt (260)
         
         diff_days = len (pd.date_range (serie.index [0], serie.index [-1]))
-        rdmt = ((serie.values [-1] - serie.values [0]) / serie.values [0]) * (365. / diff_days)
+        if self.resultat_cumule.get():
+            rdmt = ((serie.values [-1] - serie.values [0]) / serie.values [0]) * (365. / diff_days)
+        else:
+            rdmt = (serie.values [-1] - serie.values [0]) * (365. / diff_days)
+            
         vol = np.std (rdmt_days) * np.sqrt (260)
         sharpe_ratio = rdmt / vol
         mean_f = np.mean (serie)
@@ -811,7 +823,10 @@ class guiplot_tk (Tkinter.Tk):
         dtWM = mois + ' ' + str (dtWM[0])
         
         max_rolling = pd.expanding_max (serie)
-        serieDD = (serie / max_rolling - 1).dropna ()
+        if self.resultat_cumule.get():
+            serieDD = (serie / max_rolling - 1).dropna ()
+        else:
+            serieDD = (serie - max_rolling ).dropna ()
         DD = min (serieDD)
         dateDD = serieDD.loc [(serieDD==DD)].index [0]
         mois = self.int_to_month (dateDD.month)
