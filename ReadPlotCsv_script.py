@@ -406,8 +406,12 @@ class guiplot_tk (Tkinter.Tk):
                 
             if self.ddate_analyse != '':
                 for col in selection:
-                    self.df_rebase [col] = self.df_rebase [col] / self.df_rebase [col].loc [self.ddate_analyse]
-                    self.rebase_date = self.ddate_analyse
+                    if self.resultat_cumule.get():
+                        self.df_rebase [col] = self.df_rebase [col] / self.df_rebase [col].loc [self.ddate_analyse]
+                    else:
+                        x = self.df_rebase [col].loc [self.ddate_analyse] - 1
+                        self.df_rebase [col] = self.df_rebase [col] - x
+                        self.rebase_date = self.ddate_analyse
                     
             try:
                 self.label_dfdepart.forget ()
@@ -783,6 +787,7 @@ class guiplot_tk (Tkinter.Tk):
             i = 0
             
         #serie = serie.iloc [i:-1].copy ()
+        print serie.index[0], serie.index[-1]
         if self.resultat_cumule.get():
             rdmt_days = (serie.diff () / serie).dropna ()
         else:
