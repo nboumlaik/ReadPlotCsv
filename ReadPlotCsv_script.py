@@ -19,11 +19,20 @@ from scipy.sparse.csgraph import _validation #pour py2exe @UnusedImport
 import os
 import ttk
 import datetime
+from matplotlib.cbook import get_sample_data
+import matplotlib as mpl
+import matplotlib.cm as cm
+
 
 
 class guiplot_tk (Tkinter.Tk):
     
     def __init__ (self, parent):
+        
+        mpl.rcParams['xtick.labelsize'] = 10
+        mpl.rcParams['ytick.labelsize'] = 12
+        mpl.rcParams['axes.edgecolor'] = 'gray'
+
         Tkinter.Tk.__init__ (self, parent)
         self.parent = parent
         self.chemin_ = None
@@ -31,9 +40,14 @@ class guiplot_tk (Tkinter.Tk):
         try:
             pp = r'D:\Dropbox\temp\Nouveau dossier\exe\advestis.gif'
             photo = Tkinter.PhotoImage (file = pp )
+            
+            self.im = plt.imread(get_sample_data(pp))
         except:
             photo = Tkinter.PhotoImage (file = 'advestis.gif')
-            
+            self.im = plt.imread(get_sample_data(os.path.dirname (os.path.realpath(__file__)) + '/advestis.gif'))
+
+
+
         self.photo = photo
         self.colors = ['b','g','r','c','m','olive','orange','dodgerblue']
         self.do_indicateurs = Tkinter.IntVar ()
@@ -319,8 +333,8 @@ class guiplot_tk (Tkinter.Tk):
                 df.index = pd.to_datetime (df.index, format = format_date)
                 df.sort (inplace = True)
                 self.Dic [key] = df
-                print df
-                print format_date
+
+
         Bouton = Tkinter.Button (root, text = 'Valider', command = lambda : update () )
         Bouton.pack (padx = 5, pady = 5)
         
@@ -362,7 +376,9 @@ class guiplot_tk (Tkinter.Tk):
         try:
             combo_d.set(self.ddate_analyse)
         except:
-            pass
+            #pass
+            ddate_first = min ([d for d in [df.dropna().index[0] for df in self.Dic.values()]])
+            combo_d.set(ddate_first)
         combo_d.pack ()
         
         label = Tkinter.Label (root, text = "Date de fin", width = 20)
@@ -373,7 +389,10 @@ class guiplot_tk (Tkinter.Tk):
         try:
             combo_f.set(self.fdate_analyse)
         except:
-            pass
+            #pass
+            ddate_first = max ([d for d in [df.dropna().index[-1] for df in self.Dic.values()]])
+            combo_f.set(ddate_first)
+            
         combo_f.pack ()
         
         Bouton = Tkinter.Button (root, text = 'Valider', command = lambda : get_value_comb () )
@@ -738,9 +757,48 @@ class guiplot_tk (Tkinter.Tk):
         else:
             title = ""
             
+#         newax = self.figure.add_axes([0.8, 0.8, 0.2, 0.2], anchor='NE', zorder=-1)
+#         newax.imshow(self.im)
+#         newax.axis('off')
+  
+        #main_axes = self.add_math_background()
+        self.add_matplotlib_text(ax)
+    
         plt.title (title)
         plt.show ()
-              
+
+    def add_math_background(self):
+        ax = self.figure.add_axes([0., 0., 1., 1.])
+    
+        text = []
+        text.append(
+            (r"$W^{3\beta}_{\delta_1 \rho_1 \sigma_2} = "
+             r"U^{3\beta}_{\delta_1 \rho_1} + \frac{1}{8 \pi 2}"
+             r"\int^{\alpha_2}_{\alpha_2} d \alpha^\prime_2 "
+             r"\left[\frac{ U^{2\beta}_{\delta_1 \rho_1} - "
+             r"\alpha^\prime_2U^{1\beta}_{\rho_1 \sigma_2} "
+             r"}{U^{0\beta}_{\rho_1 \sigma_2}}\right]$", (0.7, 0.2), 20))
+        text.append((r"$\frac{d\rho}{d t} + \rho \vec{v}\cdot\nabla\vec{v} "
+                     r"= -\nabla p + \mu\nabla^2 \vec{v} + \rho \vec{g}$",
+                     (0.35, 0.9), 20))
+        text.append((r"$\int_{-\infty}^\infty e^{-x^2}dx=\sqrt{\pi}$",
+                     (0.15, 0.3), 25))
+        #text.append((r"$E = mc^2 = \sqrt{{m_0}^2c^4 + p^2c^2}$",
+        #            (0.7, 0.42), 30))
+        text.append((r"$F_G = G\frac{m_1m_2}{r^2}$",
+                     (0.85, 0.7), 30))
+        for eq, (x, y), size in text:
+            ax.text(x, y, eq, ha='center', va='center', color="#11557c",
+                    alpha=0.25, transform=ax.transAxes, fontsize=size)
+        ax.set_axis_off()
+        return ax
+    
+    def add_matplotlib_text(self, ax):
+        ax.text(0.25, 0.05, '$www.advestis.com$', color='#11557c', fontsize=40,
+                ha='right', va='center', alpha=0.2, transform=ax.transAxes)
+    
+
+        
     def int_to_month (self, int_month):
         int_month = int (int_month)
         list_month = ['', 'Janvier', 'Fevrier', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Aout', 'Septembre', 'Octobre', 'Novembre', 'Decembre']
@@ -787,7 +845,7 @@ class guiplot_tk (Tkinter.Tk):
             i = 0
             
         #serie = serie.iloc [i:-1].copy ()
-        print serie.index[0], serie.index[-1]
+
         if self.resultat_cumule.get():
             rdmt_days = (serie.diff () / serie).dropna ()
         else:
