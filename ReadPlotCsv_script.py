@@ -22,7 +22,7 @@ import datetime
 from matplotlib.cbook import get_sample_data
 import matplotlib as mpl
 import matplotlib.cm as cm
-
+from pandas.tseries.offsets import BDay
 
 
 class guiplot_tk (Tkinter.Tk):
@@ -44,7 +44,7 @@ class guiplot_tk (Tkinter.Tk):
             self.im = plt.imread(get_sample_data(pp))
         except:
             photo = Tkinter.PhotoImage (file = 'advestis.gif')
-            self.im = plt.imread(get_sample_data(os.path.dirname (os.path.realpath(__file__)) + '/advestis.gif'))
+            self.im = plt.imread(get_sample_data(os.path.dirname (os.path.realpath('__file__')) + '/advestis.gif'))
 
 
 
@@ -377,7 +377,7 @@ class guiplot_tk (Tkinter.Tk):
             combo_d.set(self.ddate_analyse)
         except:
             #pass
-            ddate_first = min ([d for d in [df.dropna().index[0] for df in self.Dic.values()]])
+            ddate_first = min ([d for d in [df.index[0] for df in self.Dic.values()]])
             combo_d.set(ddate_first)
         combo_d.pack ()
         
@@ -390,7 +390,7 @@ class guiplot_tk (Tkinter.Tk):
             combo_f.set(self.fdate_analyse)
         except:
             #pass
-            ddate_first = max ([d for d in [df.dropna().index[-1] for df in self.Dic.values()]])
+            ddate_first = max ([d for d in [df.index[-1] for df in self.Dic.values()]])
             combo_f.set(ddate_first)
             
         combo_f.pack ()
@@ -665,7 +665,7 @@ class guiplot_tk (Tkinter.Tk):
                             if self.ddate_analyse is None and self.fdate_analyse is None:
                                 tkMessageBox.showinfo ("Attention", "Il faut choisir une periode pour l'analyse")
                                 return
-                            out_of_sampleOrAnalyse = out_of_sampleOrAnalyse.loc [(out_of_sampleOrAnalyse.index >= self.ddate_analyse) & (out_of_sampleOrAnalyse.index <= self.fdate_analyse)].dropna()
+                            out_of_sampleOrAnalyse = out_of_sampleOrAnalyse.loc [(out_of_sampleOrAnalyse.index >= self.ddate_analyse) & (out_of_sampleOrAnalyse.index <= self.fdate_analyse)]
                             df ['Analyse'] = 0
                             df ['Analyse'].loc [(df.index >= self.ddate_analyse) & (df.index <= self.fdate_analyse)] = 1
                         
@@ -673,7 +673,7 @@ class guiplot_tk (Tkinter.Tk):
                         if self.ddate_analyse is None and self.fdate_analyse is None:
                             tkMessageBox.showinfo ("Attention", "Il faut choisir une periode pour l'analyse")
                             return
-                        out_of_sampleOrAnalyse = df.loc [(df.index >= self.ddate_analyse) & (df.index <= self.fdate_analyse)].dropna()
+                        out_of_sampleOrAnalyse = df.loc [(df.index >= self.ddate_analyse) & (df.index <= self.fdate_analyse)]
                         df ['Analyse'] = 0
                         df ['Analyse'].loc [(df.index >= self.ddate_analyse) & (df.index <= self.fdate_analyse)] = 1
                     else:
@@ -808,7 +808,7 @@ class guiplot_tk (Tkinter.Tk):
         for key in self.Dic.keys():
             df = self.Dic [key].copy()
             df.dropna (inplace = True)
-            if 'NAV_pct' in df.columns:
+            if 'NAV_pct' in df.columns and 'NAV_pct' in self.selection:
                 serie = df ['NAV_pct']
                 rdm_ = serie.diff()
                 i = -1
@@ -825,16 +825,17 @@ class guiplot_tk (Tkinter.Tk):
                         self.index_fin = index_fin
                 else:
                     self.index_fin = index_fin
-                               
+                    
+                self.index_fin = self.index_fin + BDay (1)    
         return df
     
     def calc_stats (self, serie):
         
-        try:
+        if self.fdate_analyse is not None:
             fdate = self.fdate_analyse
-        except:
+        else:
             fdate = self.index_fin
-            
+        
         serie = serie.loc [serie.index [0]:fdate].copy()
         
         if serie.name == 'GAV_pct' or serie.name == 'NAV_pct':
